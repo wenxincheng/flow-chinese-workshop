@@ -1,0 +1,154 @@
+package com.ruoyi.driver.web.controller;
+
+
+import com.alibaba.fastjson.JSONObject;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.ruoyi.common.core.exception.BaseException;
+import com.ruoyi.common.core.web.domain.ResultWrapper;
+import com.ruoyi.common.security.domain.LoginUser;
+import com.ruoyi.common.security.utils.UserUtils;
+import com.ruoyi.driver.model.domain.MpCity;
+import com.ruoyi.driver.model.domain.PageQuery;
+import com.ruoyi.driver.model.vo.AddMpCityVO;
+import com.ruoyi.driver.model.vo.LabelAndRuleVO;
+import com.ruoyi.driver.model.vo.SumDriverAndMoneyVO;
+import com.ruoyi.driver.service.DataPermissionService;
+import com.ruoyi.driver.service.MpCityService;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.util.CollectionUtils;
+import org.springframework.web.bind.annotation.*;
+
+import javax.validation.constraints.NotNull;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+import static com.ruoyi.common.core.constant.ApiTagsConstants.CITY_MANAGE;
+
+
+/**
+ * 城市表 控制器
+ *
+ * @author Seth
+ * @since 2020-08-27
+ */
+@Api(tags = CITY_MANAGE)
+@RestController
+@RequestMapping("/mpCity")
+@Slf4j
+@EnableAsync
+public class MpCityController {
+
+    @Autowired
+    private MpCityService mpCityService;
+
+    @Autowired
+    private UserUtils userUtils;
+
+    @Autowired
+    private DataPermissionService dataPermissionService;
+
+
+    @ApiOperation(httpMethod = "GET", value = "点击新建城市返回数据")
+    @GetMapping("responseTemplate")
+    public ResultWrapper<LabelAndRuleVO> responseTemplate(Long cityId) {
+        LabelAndRuleVO labelAndRuleVO = this.mpCityService.responseTemplate(cityId);
+        return ResultWrapper.success(labelAndRuleVO);
+    }
+
+    @ApiOperation(httpMethod = "POST", value = "添加城市")
+    @PostMapping("add")
+    public ResultWrapper<?> add(@RequestBody AddMpCityVO addMpCityVO) {
+        Long userId = userUtils.getUserId();
+        this.mpCityService.add(addMpCityVO, userId);
+        return ResultWrapper.success();
+    }
+
+    @ApiOperation(httpMethod = "GET", value = "编辑城市规则返回信息")
+    @GetMapping("updateResponse")
+    public ResultWrapper<AddMpCityVO> updateResponse(Long cityId) {
+        AddMpCityVO addMpCityVO = this.mpCityService.updateResponse(cityId);
+        return ResultWrapper.success(addMpCityVO);
+    }
+
+    @ApiOperation(httpMethod = "POST", value = "编辑城市规则")
+    @PostMapping("update")
+    public ResultWrapper<?> update(@RequestBody AddMpCityVO addMpCityVO) {
+        Long userId = userUtils.getUserId();
+        this.mpCityService.updateRule(addMpCityVO, userId);
+        return ResultWrapper.success();
+    }
+
+    @ApiOperation(httpMethod = "GET", value = "查找每个城市的司机总人数和总提现金额")
+    @GetMapping("SelectSumDriverAndDeposit")
+    public ResultWrapper<IPage<SumDriverAndMoneyVO>> selectSumDriverAndDeposit(String cityName, PageQuery pageQuery) {
+        Long userId = userUtils.getUserId();
+        List<Long> cityIds = dataPermissionService.listCityIdsByUserId(userId);
+        IPage<SumDriverAndMoneyVO> sumDriverAndMoneyVO = this.mpCityService.selectSumDriverAndDeposit(cityName, pageQuery, cityIds);
+        return ResultWrapper.success(sumDriverAndMoneyVO);
+    }
+
+    @ApiOperation(httpMethod = "POST", value = "删除城市")
+    @PostMapping("delete")
+    public ResultWrapper<?> delete(@RequestBody AddMpCityVO addMpCityVO) {
+        this.mpCityService.deleteRule(addMpCityVO);
+        return ResultWrapper.success();
+    }
+
+    @ApiOperation(httpMethod = "GET", value = "查询城市")
+    @GetMapping("all")
+    public ResultWrapper<List<MpCity>> all() {
+        LoginUser user = userUtils.getUser();
+        if (Objects.isNull(user)) {
+            throw new BaseException("请登录");
+        }
+        log.info("登录用户类型={}", user.getType());
+        log.info(String.valueOf(user.getType()));
+        log.info(JSONObject.toJSONString(user));
+        if (Objects.equals(user.getType(), LoginUser.TYPE_ADMIN)) {
+            List<Long> cityList = this.dataPermissionService.listCityIdsByUserId(user.getUserId());
+            if (CollectionUtils.isEmpty(cityList)) {
+                return ResultWrapper.success(null);
+            }
+            List<MpCity> mpCityList = new ArrayList<>();
+            cityList.forEach(id -> {
+                MpCity mpCity = this.mpCityService.getById(id);
+                if (Objects.nonNull(mpCity)) {
+                    mpCityList.add(mpCity);
+                }
+            });
+            return ResultWrapper.success(mpCityList);
+        }
+        List<MpCity> mpCity = this.mpCityService.all();
+        return ResultWrapper.success(mpCity);
+    }
+
+    @ApiOperation(httpMethod = "GET", value = "查询城市(不区分权限)")
+    @GetMapping("list")
+    public ResultWrapper<List<MpCity>> list() {
+        List<MpCity> mpCity = this.mpCityService.all();
+        return ResultWrapper.success(mpCity);
+    }
+
+    @ApiOperation(httpMethod = "GET", value = "修改城市的积分开关")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "cityId", value = "城市id", dataType = "Long", paramType = "query"),
+            @ApiImplicitParam(name = "switchType", value = "积分开关状态（1、开，0、关）", dataType = "int", paramType = "query")
+    })
+    @GetMapping("updateScoreSwitch")
+    public ResultWrapper<?> updateScoreSwitch(@NotNull(message = "城市id不能为空") Long cityId, @NotNull(message = "积分开关状态不能为空") Integer switchType) {
+
+        this.mpCityService.updateScoreSwitch(cityId, switchType);
+        return ResultWrapper.success();
+    }
+
+
+}
+
+
